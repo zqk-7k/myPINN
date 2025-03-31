@@ -1,0 +1,2 @@
+# myPINN
+PINN_amplification
