@@ -13,3 +13,7 @@ PINN_torch2.py
 pinn_test3.py
 数据损失加物理损失，其中还有边界约束条件。
 ![image](https://github.com/user-attachments/assets/8a5799a7-cf9d-4f90-8656-b04fbcb8b0b6)
+
+PINN_Kummer_Physics_BC_y10.py
+固定y=10，模拟结果，数据损失，添加了1的边界值约束，添加了尾部边界约束。
+![image](https://github.com/user-attachments/assets/2a2fb92b-4794-448f-936e-f9c11d4e7c2a)
