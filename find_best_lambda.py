@@ -49,7 +49,7 @@ F_exact = np.array([rebuild_F_from_1F1(F_exact_1f1[i], omega, y_fixed) for i, om
 X_tensor = torch.tensor(X_train, dtype=torch.float32, device=device)
 
 # 权重组合
-lambda_range = [1, 0.1, 0.01, 0.001, 0.0001, 0.00001]
+lambda_range = [1, 0.1, 0.01, 0.001, 0.0001, 0.00001, 0.000001]
 num_epochs = 5000
 
 # 创建图像保存目录
