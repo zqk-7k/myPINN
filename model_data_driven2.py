@@ -25,11 +25,21 @@ def amplification_factor(omega, y):
     return complex(F)
 
 # 训练数据：y = [1, 5, 10, 40]
-omega_values = np.linspace(0.01, 0.1, 2000)
-y_values = [1.0, 1.2, 1.4, 1.6, 1.8, 2.0,
-           3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0,
-           10.0, 12.0, 14.0, 16.0 ,18.0, 20.0,
-           30.0, 40.0]
+omega_values = np.linspace(0.01, 0.1, 4000)
+
+# y ∈ [1, 5) 区间：密集采样
+y_dense = np.linspace(1.0, 5.0, 21)  # 每 0.2 取点
+
+# y ∈ [5, 20] 区间：稀疏采样
+y_sparse = np.linspace(5.0, 20.0, 16)  # 每 1.0 左右
+
+# 合并去重（避免重复 5.0）
+y_values = sorted(set(np.concatenate([y_dense, y_sparse]).tolist()))
+
+# y_values = [1.0, 1.2, 1.4, 1.6, 1.8, 2.0,
+#            3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0,
+#            10.0, 12.0, 14.0, 16.0 ,18.0, 20.0,
+#            30.0, 40.0]
 X_train = np.array([[omega, y] for omega in omega_values for y in y_values])
 F_train = np.array([amplification_factor(omega, y) for omega, y in X_train])
 F_train_real = np.real(F_train)
@@ -82,8 +92,18 @@ for epoch in range(num_epochs):
 torch.save(model.state_dict(), "pinn_model_weights.pth")
 
 # ====== 测试阶段使用新的 y 值 ======
-y_test_values = [5, 8, 10, 20, 28, 32]
-y_test_values = [1, 5, 10, 40, 20]
+
+# 训练数据：y = [1, 5, 10, 40]
+omega_values = np.linspace(0.01, 0.1, 2000)
+
+# y ∈ [1, 5) 区间：密集采样
+y_dense = np.linspace(1.0, 5.0, 21)  # 每 0.2 取点
+
+# y ∈ [5, 20] 区间：稀疏采样
+y_test_values = np.linspace(5.0, 20.0, 16)  # 每 1.0 左右
+
+# y_test_values = [5, 8, 10, 20, 28, 32]
+# y_test_values = [1, 5, 10, 40, 20]
 X_test = np.array([[omega, y] for omega in omega_values for y in y_test_values])
 F_test = np.array([amplification_factor(omega, y) for omega, y in X_test])
 F_test_real = np.real(F_test)
@@ -121,20 +141,25 @@ for y in y_test_values:
     metrics[y] = (mse, rmse, mae)
     print(f"y = {y}: MSE = {mse:.6e}, RMSE = {rmse:.6e}, MAE = {mae:.6e}")
 
-# 可视化
-plt.figure(figsize=(10, 6))
-for idx, y in enumerate(y_test_values):
+import os
+os.makedirs("res", exist_ok=True)
+
+# 单独可视化每个 y 的预测与真实值
+for y in y_test_values:
     idx_y = np.where(X_test[:, 1] == y)[0]
     F_values = F_pred[idx_y]
     F_true_values = F_test[idx_y]
-    error = np.abs(F_values - F_true_values)
     mse, rmse, mae = compute_metrics(F_true_values, F_values)
-    plt.plot(omega_values, np.abs(F_values), label=f'y = {y} (RMSE={rmse:.2e})')
-    plt.plot(omega_values, np.abs(F_true_values), '--', label=f'Real y = {y}')
-plt.xlabel(r'$\omega$', fontsize=14)
-plt.ylabel(r'$|F(\omega)|$', fontsize=14)
-plt.title('Predicted vs Real Amplification Factor $F(\omega)$ (New y values)', fontsize=16)
-plt.grid(True)
-plt.legend()
-plt.show()
-plt.savefig("pinn_test_result.png")
+
+    plt.figure(figsize=(8, 5))
+    plt.plot(omega_values, np.abs(F_values), label=f'Predicted |F|')
+    plt.plot(omega_values, np.abs(F_true_values), '--', label=f'Real |F|')
+    plt.xlabel(r'$\omega$', fontsize=14)
+    plt.ylabel(r'$|F(\omega)|$', fontsize=14)
+    plt.title(f'Prediction vs Real (y = {y})\nRMSE={rmse:.2e}', fontsize=15)
+    plt.grid(True)
+    plt.legend()
+    plt.tight_layout()
+    plt.savefig(f"res1/siren_y{int(y)}_result.png")
+    plt.close()
+    print(f"✅ 图像已保存为 res/siren_y{int(y)}_result.png")
