@@ -8,6 +8,31 @@ import os
 
 from model import SIRENModel
 
+from torch.utils.data import Dataset, DataLoader
+
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+
+class GWLensDataset(Dataset):
+    def __init__(self, omega_values, y_train_values, normalize_func):
+        self.X = []
+        self.Y = []
+        for y in y_train_values:
+            for omega in omega_values:
+                o_n, y_n = normalize_func(omega, y)
+                self.X.append([o_n, y_n])
+                f = amplification_factor(omega, y)
+                self.Y.append([f.real, f.imag])
+        self.X = torch.tensor(self.X, dtype=torch.float32)
+        self.Y = torch.tensor(self.Y, dtype=torch.float32)
+
+    def __len__(self):
+        return len(self.X)
+
+    def __getitem__(self, idx):
+        return self.X[idx], self.Y[idx]
+
+
 
 def visualize_y_prediction(model, y_vis, omega_values, normalize_func, epoch, save_dir="progress_plots2"):
     """
@@ -49,7 +74,6 @@ def visualize_y_prediction(model, y_vis, omega_values, normalize_func, epoch, sa
     print(f"📈 可视化图保存: {save_dir}/y{y_vis:.2f}_epoch{epoch}.png")
 
 
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 # 固定随机种子以保证每次运行一致（可选）
 np.random.seed(42)
 # === 物理真值函数 ===
@@ -90,8 +114,12 @@ for y in y_train_values:
         f = amplification_factor(omega, y)
         Y_list.append([f.real, f.imag])
 
-X_train = torch.tensor(X_list, dtype=torch.float32, device=device)
-Y_train = torch.tensor(Y_list, dtype=torch.float32, device=device)
+# X_train = torch.tensor(X_list, dtype=torch.float32, device=device)
+# Y_train = torch.tensor(Y_list, dtype=torch.float32, device=device)
+# 构建 Dataset 和 DataLoader
+dataset = GWLensDataset(omega_values, y_train_values, normalize)
+dataloader = DataLoader(dataset, batch_size=4096, shuffle=True, pin_memory=True)
+
 
 # === 模型、优化器、损失 ===
 model = SIRENModel(
@@ -110,22 +138,29 @@ criterion = nn.MSELoss()
 os.makedirs("checkpoints2", exist_ok=True)
 for epoch in range(1, 10001):
     model.train()
-    optimizer.zero_grad()
-    pred = model(X_train)
-    loss = criterion(pred, Y_train)
-    loss.backward()
-    optimizer.step()
+    total_loss = 0.0
+    for batch_X, batch_Y in dataloader:
+        batch_X, batch_Y = batch_X.to(device), batch_Y.to(device)
+        optimizer.zero_grad()
+        pred = model(batch_X)
+        loss = criterion(pred, batch_Y)
+        loss.backward()
+        optimizer.step()
+        total_loss += loss.item() * len(batch_X)
+    avg_loss = total_loss / len(dataloader.dataset)
+
     if epoch % 500 == 0:
-        print(f"Epoch {epoch:5d}  Loss = {loss.item():.3e}")
+        print(f"Epoch {epoch:5d}  Loss = {avg_loss:.3e}")
         torch.save(model.state_dict(), f"checkpoints2/siren_w0{model.net[0].act.w0:.0f}_ep{epoch}.pth")
     if epoch % 2000 == 0:
         visualize_y_prediction(
             model=model,
-            y_vis=3.0,
+            y_vis=6.0,
             omega_values=omega_values,
             normalize_func=normalize,
             epoch=epoch
         )
+
 
 # 随机选取不重复的 50 个 y 值
 y_test_values = np.random.choice(y_train_values, size=50, replace=False)
